@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZINK — шаблоны</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<style>
+.lib { flex: 1; min-height: 0; width: 100%; max-width: 1280px; margin: 0 auto; padding: 32px 40px; display: flex; flex-direction: column; justify-content: center; gap: 28px; }
+.lib__head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.lib__title { margin: 0; font-weight: 700; font-size: 40px; letter-spacing: -0.045em; line-height: 1; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px 28px; }
+/* Карточки держат высоту окна: ширина считается от доступной высоты */
+.grid { --cw: min(280px, calc((100vw - 80px - 84px) / 4), calc((100dvh - 61px - 64px - 68px - 36px - 68px) / 2 / .7)); grid-template-columns: repeat(4, var(--cw)); justify-content: space-between; }
+.card { display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: #111111; }
+.card__thumb { width: 100%; aspect-ratio: 10 / 7; }
+.card--live .card__thumb { box-shadow: 0 10px 24px rgba(0,0,0,.14); transition: transform .25s, box-shadow .25s; }
+.card--live .card__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.card--live:hover .card__thumb { transform: translateY(-4px); box-shadow: 0 18px 34px rgba(0,0,0,.18); }
+.card--blank .card__thumb { background: linear-gradient(90deg, #FFFFFF 0 46%, #EDEDEA 49.6%, #E4E4E0 50%, #F1F1EE 50.6%, #FFFFFF 54%); box-shadow: 0 0 0 1px #ECECE8, 0 8px 20px rgba(0,0,0,.06); }
+.card__meta { display: flex; justify-content: space-between; align-items: baseline; }
+.card__name { font-weight: 600; font-size: 15px; }
+.card__ph { height: 8px; width: 90px; background: #EDEDEA; margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .app { height: auto; min-height: 100dvh; overflow: visible; }
+  .lib { padding: 24px 20px 40px; justify-content: flex-start; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
+  .lib__title { font-size: 32px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="logo" href="index.html">ZINK</a>
+    <nav aria-label="Шаги">
+      <ol class="steps mono">
+        <li><a href="templates.html" aria-current="step">01 шаблон</a></li>
+        <li><a href="editor.html">02 редактор</a></li>
+        <li><a href="print.html">03 печать</a></li>
+      </ol>
+    </nav>
+    <span class="topbar__right"></span>
+  </header>
+
+  <main class="lib">
+    <div class="lib__head">
+      <h1 class="lib__title">Шаблоны</h1>
+      <span class="mono muted">8 страниц · один лист A4</span>
+    </div>
+    <div class="grid" id="grid">
+      <a class="card card--live" href="editor.html">
+        <div class="card__thumb"><img src="assets/tpl1/spread-0.webp" alt="Обложка и задник шаблона 1"></div>
+        <div class="card__meta"><span class="card__name">Шаблон 1</span><span class="mono muted">01</span></div>
+      </a>
+    </div>
+  </main>
+</div>
+<script>
+  // Пустые заглушки 02–08: в библиотеке пока проработан один шаблон
+  (function () {
+    var grid = document.getElementById('grid');
+    for (var n = 2; n <= 8; n++) {
+      var d = document.createElement('div');
+      d.className = 'card card--blank';
+      d.setAttribute('aria-label', 'Пустой шаблон');
+      d.innerHTML = '<div class="card__thumb"></div><div class="card__meta"><span class="card__ph"></span><span class="mono" style="color:#C4C4BF">0' + n + '</span></div>';
+      grid.appendChild(d);
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZINK — печать</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@700&family=PT+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<style>
+.pr { flex: 1; min-height: 0; width: 100%; max-width: 1160px; margin: 0 auto; padding: 24px 40px; display: flex; gap: 64px; align-items: center; }
+.pr__sheet { flex: 1 1 560px; min-width: 0; background: #F1F1EF; padding: 36px 28px; display: flex; justify-content: center; }
+.pr__sheet canvas { display: block; width: 100%; max-width: 760px; max-height: calc(100dvh - 61px - 48px - 72px); object-fit: contain; aspect-ratio: 297 / 210; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 14px 32px rgba(0,0,0,.14); background: #FFFFFF; }
+.pr__side { flex: 0 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.pr__title { margin: 0; font-weight: 600; font-size: 40px; letter-spacing: -0.035em; line-height: 1; }
+.steps-list { list-style: none; margin: 0; padding: 0; font-size: 14px; line-height: 1.4; }
+.steps-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr); padding: 9px 0; border-top: 1px solid #E3E3DF; }
+.steps-list li:last-child { border-bottom: 1px solid #E3E3DF; }
+@media (max-width: 900px) {
+  .app { height: auto; min-height: 100dvh; overflow: visible; }
+  .pr { flex-direction: column; align-items: stretch; gap: 28px; padding: 20px 16px 40px; }
+  .pr__sheet { flex: none; padding: 20px 14px; }
+  .pr__sheet canvas { max-height: none; }
+  .pr__side { flex: none; }
+  .pr__title { font-size: 32px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="logo" href="index.html">ZINK</a>
+    <nav aria-label="Шаги">
+      <ol class="steps mono">
+        <li><a href="templates.html">01 шаблон</a></li>
+        <li><a href="editor.html">02 редактор</a></li>
+        <li><a href="print.html" aria-current="step">03 печать</a></li>
+      </ol>
+    </nav>
+    <span class="topbar__right"></span>
+  </header>
+
+  <main class="pr">
+    <section class="pr__sheet" aria-label="Лист для печати">
+      <canvas id="sheet" width="1680" height="1188" role="img" aria-label="Весь зин на одном листе A4: верхний ряд страниц перевёрнут, по центру линия надреза"></canvas>
+    </section>
+    <section class="pr__side">
+      <h1 class="pr__title">Зин готов</h1>
+      <ol class="steps-list">
+        <li><span class="mono">01</span><span>Распечатай лист A4 с одной стороны</span></li>
+        <li><span class="mono">02</span><span>Сложи по пунктиру на 8 частей</span></li>
+        <li><span class="mono">03</span><span>Надрежь по красной линии в центре</span></li>
+        <li><span class="mono">04</span><span>Сложи в книжечку — обложка окажется сверху</span></li>
+      </ol>
+      <button type="button" class="btn btn--block" id="pdf">Скачать PDF ↓</button>
+    </section>
+  </main>
+</div>
+<script src="js/tpl1-data.js"></script>
+<script src="js/zine.js"></script>
+<script>
+(function () {
+  var Z = window.ZINK, state = Z.load();
+  var canvas = document.getElementById('sheet'), btn = document.getElementById('pdf');
+  // Превью: тот же лист, что уйдёт в PDF, с линиями сгибов и надреза
+  Z.renderSheet(canvas, state, { guides: true });
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true; btn.textContent = 'Собираю PDF…';
+    // Печатный файл: 200 dpi, лист A4 альбомный; сгибы — тонким пунктиром, надрез — красным
+    var c = document.createElement('canvas'); c.width = 2339; c.height = 1654;
+    Z.renderSheet(c, state, { guides: true }).then(function () {
+      var blob = Z.pdfFromJpeg(c.toDataURL('image/jpeg', 0.92), c.width, c.height);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'zink-zin.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      btn.textContent = '✓ PDF скачан';
+    }).catch(function () {
+      btn.textContent = 'Не получилось — попробуй ещё раз';
+    }).then(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

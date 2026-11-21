@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZINK — редактор</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@700&family=PT+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<style>
+.ed { flex: 1; min-height: 0; display: grid; grid-template-columns: 200px minmax(0, 1fr) 320px; }
+.ed__pages { border-right: 1px solid #E3E3DF; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.ed__bar { height: 3px; background: #ECECE8; margin-top: 6px; }
+.ed__bar > div { height: 100%; background: #111111; transition: width .3s; }
+.thumbs { display: flex; flex-direction: column; gap: 12px; }
+.thumb { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 6px; cursor: pointer; background: transparent; border: 1px solid transparent; text-align: left; }
+.thumb[aria-selected="true"] { border-color: #111111; }
+.thumb img { width: 100%; aspect-ratio: 10 / 7; object-fit: cover; box-shadow: 0 1px 4px rgba(0,0,0,.14); }
+.thumb__meta { display: flex; justify-content: space-between; }
+
+.ed__stage { background: #F1F1EF; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; min-width: 0; }
+.fit { position: relative; flex: none; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 18px 40px rgba(0,0,0,.14); }
+.spread { position: absolute; left: 0; top: 0; width: 1190px; height: 842px; overflow: hidden; transform-origin: 0 0; user-select: none; -webkit-user-select: none; }
+.lay { position: absolute; }
+.hit { cursor: pointer; }
+.hit:hover { outline: 2px solid rgba(47,91,234,.55); outline-offset: -2px; }
+.todo { outline: 2px dashed rgba(47,91,234,.7); outline-offset: -2px; }
+.on, .on:hover { outline: 3px solid #2F5BEA; outline-offset: -3px; }
+.spine { position: absolute; left: 575px; top: 0; width: 40px; height: 842px; z-index: 55; pointer-events: none; background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,.10) 48%, rgba(0,0,0,.14) 50%, rgba(0,0,0,.06) 52%, rgba(0,0,0,0)); }
+.strokes { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 60; pointer-events: none; }
+.pen { position: absolute; inset: 0; z-index: 70; cursor: crosshair; touch-action: none; display: none; }
+.pen.is-on { display: block; }
+
+.ed__panel { border-left: 1px solid #E3E3DF; display: flex; flex-direction: column; overflow-y: auto; }
+.sec { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #E3E3DF; }
+.sec:last-child { border-bottom: 0; }
+.sec__title { font-weight: 600; font-size: 20px; letter-spacing: -0.02em; }
+.sec p { margin: 0; font-size: 14px; line-height: 1.5; color: #4A4742; }
+.sec .hint { font-size: 13px; color: #6B6B67; }
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-list button { display: flex; justify-content: space-between; width: 100%; padding: 10px 0; border: 0; border-top: 1px solid #E3E3DF; background: transparent; cursor: pointer; font-size: 14px; text-align: left; }
+.ghost { background: transparent; border: 0; padding: 0; min-height: 30px; cursor: pointer; color: #4A4A4A; font: 500 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .02em; text-decoration: underline; text-underline-offset: 3px; align-self: flex-start; }
+.ghost:hover { color: #111111; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.sw { width: 28px; height: 28px; cursor: pointer; padding: 0; }
+.sw[aria-checked="true"] { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3px #111111; }
+.file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.file:focus-visible + span { outline: 2px solid #2F5BEA; outline-offset: 2px; }
+.range { width: 100%; accent-color: #111111; }
+textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px solid #D6D6D2; border-radius: 0; padding: 10px; resize: vertical; }
+.toast { font-size: 12px; color: #8A4A12; }
+[hidden] { display: none !important; }
+
+/* Планшет: панель уже */
+@media (max-width: 1100px) { .ed { grid-template-columns: 170px minmax(0, 1fr) 280px; } }
+/* Телефон: разворот сверху, развороты лентой, панель снизу */
+@media (max-width: 760px) {
+  .ed { display: flex; flex-direction: column; }
+  .ed__stage { order: 1; padding: 16px 12px; }
+  .ed__pages { order: 2; border-right: 0; border-bottom: 1px solid #E3E3DF; padding: 12px 16px; overflow: visible; }
+  .thumbs { flex-direction: row; overflow-x: auto; gap: 8px; scroll-snap-type: x mandatory; }
+  .thumb { flex: 0 0 150px; scroll-snap-align: start; }
+  .ed__panel { order: 3; border-left: 0; overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:24px">
+      <a class="logo" href="index.html">ZINK</a>
+      <span class="mono muted" id="tplName">шаблон 1</span>
+    </div>
+    <nav aria-label="Шаги">
+      <ol class="steps mono">
+        <li><a href="templates.html">01 шаблон</a></li>
+        <li><a href="editor.html" aria-current="step">02 редактор</a></li>
+        <li><a href="print.html">03 печать</a></li>
+      </ol>
+    </nav>
+    <div class="topbar__right"><a class="btn" href="print.html" style="min-height:40px;padding:0 18px;font-size:14px">Готово → печать</a></div>
+  </header>
+
+  <div class="ed">
+    <aside class="ed__pages" aria-label="Развороты">
+      <div>
+        <span class="mono" id="progressText">Заполнено 0 из 15</span>
+        <div class="ed__bar" aria-hidden="true"><div id="progressBar" style="width:0"></div></div>
+      </div>
+      <div class="thumbs" role="tablist" id="thumbs"></div>
+    </aside>
+
+    <main class="ed__stage" id="stage" aria-label="Разворот">
+      <div class="fit" id="fit">
+        <div class="spread" id="spread">
+          <div id="layers"></div>
+          <div class="spine" aria-hidden="true"></div>
+          <svg class="strokes" id="strokes" viewBox="0 0 1190 842" aria-hidden="true"></svg>
+          <div class="pen" id="pen" role="img" aria-label="Холст для подписи от руки"></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="ed__panel" aria-label="Настройки">
+      <div class="sec">
+        <span class="mono muted" id="kicker" hidden></span>
+        <span class="sec__title" id="panelTitle">Что заполнить</span>
+      </div>
+
+      <div class="sec" id="pNone">
+        <p>Нажми на фото или текст на развороте и замени на своё. Пунктиром отмечено то, что ещё осталось из шаблона.</p>
+        <ul class="todo-list" id="todo"></ul>
+      </div>
+
+      <div class="sec" id="pPhoto" hidden>
+        <label style="position:relative;display:block">
+          <input type="file" accept="image/*" class="file" id="upload">
+          <span class="btn btn--outline btn--block" style="min-height:40px;font-size:13px">Заменить фото</span>
+        </label>
+        <label for="zoom" class="mono" style="display:flex;justify-content:space-between;margin-top:4px"><span>Масштаб</span><span id="zoomVal">100%</span></label>
+        <input id="zoom" type="range" min="100" max="300" step="5" value="100" class="range">
+        <p class="hint">Перетащи фото внутри рамки, чтобы выбрать кадр. Рамка остаётся на месте — вёрстка не сломается.</p>
+        <button type="button" class="ghost" data-reset>вернуть как было</button>
+        <span class="toast" id="saveWarn" hidden>Фото слишком тяжёлые для сохранения в браузере — правки пропадут после перезагрузки.</span>
+      </div>
+
+      <div class="sec" id="pText" hidden>
+        <label for="txt" class="mono">Текст</label>
+        <textarea id="txt" rows="6"></textarea>
+        <p class="hint">Шрифт и размер задаёт шаблон — текст встанет ровно на своё место.</p>
+        <button type="button" class="ghost" data-reset>вернуть как было</button>
+      </div>
+
+      <div class="sec" id="pDecor" hidden>
+        <span class="mono">Цвет</span>
+        <div class="swatches" role="radiogroup" aria-label="Цвет детали" id="decorSw"></div>
+        <button type="button" class="btn btn--outline btn--block" id="hideDecor" style="min-height:40px;font-size:13px">Скрыть деталь</button>
+      </div>
+
+      <div class="sec" id="pPage" hidden>
+        <span class="mono">Фон страницы</span>
+        <div class="swatches" role="radiogroup" aria-label="Фон страницы" id="bgSw"></div>
+      </div>
+
+      <div class="sec">
+        <span class="mono">Подпись от руки</span>
+        <button type="button" class="btn btn--outline btn--block" id="penBtn" aria-pressed="false" style="min-height:40px;font-size:13px">Взять карандаш</button>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="swatches" role="radiogroup" aria-label="Цвет карандаша" id="inkSw"></div>
+          <button type="button" class="ghost" id="undo" style="align-self:center">отменить</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<script src="js/tpl1-data.js"></script>
+<script src="js/zine.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>
