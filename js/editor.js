@@ -4,6 +4,7 @@
   var LABELS = ['8 · 1 обложка', '2 · 3', '4 · 5', '6 · 7'];
   var TITLES = { photo: 'Фото', text: 'Текст', decor: 'Деталь', page: 'Страница' };
   var state = Z.load();
+  state.textColors = state.textColors || {};
   var ui = { sp: 0, sel: null, pen: false, ink: 0 };
   var $ = function (id) { return document.getElementById(id); };
   var fit = 1;
@@ -12,7 +13,26 @@
   function isSel(kind, id) { return ui.sel && ui.sel.kind === kind && String(ui.sel.id) === String(id); }
   function filledPhoto(id) { return !!(state.photos[id] && state.photos[id].user); }
   function filledText(t) { return state.texts[t.id] !== undefined && state.texts[t.id] !== t.text; }
-  function persist() { var ok = Z.save(state); $('saveWarn').hidden = ok; }
+  function persist() { var ok = Z.save(state); $('saveWarn').hidden = ok; queueThumb(ui.sp); }
+
+  // Живые миниатюры: перерисовываем разворот после правок (с небольшой задержкой)
+  var thumbSrc = [], thumbDirty = {}, thumbTimer = null;
+  function queueThumb(i) {
+    thumbDirty[i] = true; clearTimeout(thumbTimer);
+    thumbTimer = setTimeout(drawThumbs, 250);
+  }
+  function drawThumbs() {
+    var list = Object.keys(thumbDirty).map(Number); thumbDirty = {};
+    list.reduce(function (p, i) {
+      return p.then(function () {
+        var c = document.createElement('canvas'); c.width = 560; c.height = Math.round(560 * Z.PAGE_H / (Z.PAGE_W * 2));
+        return Z.renderSpread(c, i, state).then(function () {
+          try { thumbSrc[i] = c.toDataURL('image/jpeg', 0.85); } catch (e) { return; }
+          var img = document.querySelector('.thumb[data-i="' + i + '"] img'); if (img) img.src = thumbSrc[i];
+        });
+      });
+    }, Promise.resolve());
+  }
   function item() {
     if (!ui.sel) return null;
     var P = D.pages[ui.sel.page], k = ui.sel.kind;
@@ -53,9 +73,10 @@
 
       P.decor.forEach(function (d) {
         var st = state.decor[d.id] || {}, on = isSel('decor', d.id);
+        if (st.hidden) return;   // скрытая деталь убирается полностью и не мешает нажимать на фото под ней
         var m = el('div', 'lay hit' + (on ? ' on' : ''),
           'left:' + (ox + d.x) + 'px;top:' + d.y + 'px;width:' + d.w + 'px;height:' + d.h + 'px;z-index:20;background-color:' + (st.color || d.color) +
-          ';-webkit-mask:url(' + d.mask + ') 0 0/100% 100% no-repeat;mask:url(' + d.mask + ') 0 0/100% 100% no-repeat;opacity:' + (st.hidden ? (on ? 0.15 : 0) : 1));
+          ';-webkit-mask:url(' + d.mask + ') 0 0/100% 100% no-repeat;mask:url(' + d.mask + ') 0 0/100% 100% no-repeat');
         m.setAttribute('role', 'button'); m.setAttribute('aria-label', 'Деталь, ' + pageName(pg));
         m.addEventListener('pointerdown', function (e) { if (ui.pen) return; e.stopPropagation(); select('decor', d.id, pg); });
         root.appendChild(m);
@@ -65,8 +86,11 @@
         var F = Z.FONTS[t.style], on = isSel('text', t.id);
         var val = state.texts[t.id] !== undefined ? state.texts[t.id] : t.text;
         var tx = el('div', 'lay hit' + (on ? ' on' : (filledText(t) ? '' : ' todo')),
-          'left:' + (ox + t.x) + 'px;top:' + t.y + 'px;width:' + t.w + 'px;z-index:30;padding:4px 6px;overflow-wrap:anywhere;text-align:' + t.align + ';color:' + t.color + ';white-space:' + (F.wrap ? 'pre-wrap' : 'pre') + ';' + fontCss(F));
-        tx.textContent = val;
+          'left:' + (ox + t.x) + 'px;top:' + t.y + 'px;width:' + t.w + 'px;z-index:30;padding:4px 6px;text-align:' + t.align + ';color:' + (state.textColors[t.id] || t.color) + ';white-space:pre;' + fontCss(F));
+        // Те же строки и кегль, что уйдут в PDF
+        var fit = Z.fitText(t, val);
+        tx.style.fontSize = fit.size + 'px'; tx.style.lineHeight = fit.lh + 'px';
+        tx.textContent = fit.lines.join('\n');
         tx.setAttribute('role', 'button'); tx.setAttribute('aria-label', 'Текст, ' + pageName(pg));
         tx.addEventListener('pointerdown', function (e) { if (ui.pen) return; e.stopPropagation(); select('text', t.id, pg); });
         root.appendChild(tx);
@@ -122,8 +146,8 @@
     var box = $('thumbs'); box.innerHTML = '';
     Z.SPREADS.forEach(function (p, i) {
       var n = (pr.left[p[0]] || 0) + (pr.left[p[1]] || 0);
-      var b = el('button', 'thumb'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', i === ui.sp ? 'true' : 'false');
-      b.innerHTML = '<img src="' + D.spreads[i] + '" alt="">' +
+      var b = el('button', 'thumb'); b.type = 'button'; b.dataset.i = i; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', i === ui.sp ? 'true' : 'false');
+      b.innerHTML = '<img src="' + (thumbSrc[i] || D.spreads[i]) + '" alt="">' +
         '<span class="thumb__meta mono"><span>' + LABELS[i] + '</span><span style="color:' + (n ? '#8A8A86' : '#1E6B2E') + '">' + (n ? 'ещё ' + n : '✓') + '</span></span>';
       b.addEventListener('click', function () { ui.sp = i; ui.sel = null; render(); });
       box.appendChild(b);
@@ -139,6 +163,30 @@
       return b;
     });
   }
+  // Свой цвет: палитра браузера в квадратике с радугой
+  function anyColor(current, onLive, onDone) {
+    var l = el('label', 'sw sw--any'); l.title = 'Свой цвет';
+    var inp = document.createElement('input'); inp.type = 'color'; inp.setAttribute('aria-label', 'Свой цвет');
+    inp.value = /^#[0-9a-f]{6}$/i.test(current) ? current : '#ffffff';
+    var inPal = Z.PAL.some(function (c) { return c.c.toLowerCase() === String(current).toLowerCase(); });
+    if (!inPal) { l.setAttribute('aria-checked', 'true'); l.style.background = current; }
+    inp.addEventListener('input', function () { l.style.background = inp.value; onLive(inp.value); });
+    inp.addEventListener('change', function () { onDone(inp.value); });
+    l.appendChild(inp); return l;
+  }
+  function setBg(pg, c, done) {
+    state.bgs[pg] = c;
+    if (done) { persist(); render(); } else { renderSpread(); queueThumb(ui.sp); }
+  }
+  function setTextColor(id, c, done) {
+    state.textColors[id] = c;
+    if (done) { persist(); render(); } else { renderSpread(); queueThumb(ui.sp); }
+  }
+  function bgNodes(pg) {
+    var cur = state.bgs[pg] || D.pages[pg].bg;
+    return swatch(Z.PAL, cur, function (c) { setBg(pg, c, true); })
+      .concat([anyColor(cur, function (c) { setBg(pg, c, false); }, function (c) { setBg(pg, c, true); })]);
+  }
   function fill(id, nodes) { var e = $(id); e.innerHTML = ''; nodes.forEach(function (n) { e.appendChild(n); }); }
 
   function renderPanel() {
@@ -148,6 +196,9 @@
     ['pNone', 'pPhoto', 'pText', 'pDecor', 'pPage'].forEach(function (id) { $(id).hidden = true; });
     if (!sel) {
       $('pNone').hidden = false;
+      var nHid = 0;
+      Z.SPREADS[ui.sp].forEach(function (pg) { D.pages[pg].decor.forEach(function (d) { if ((state.decor[d.id] || {}).hidden) nHid++; }); });
+      $('showDecor').hidden = !nHid; $('showDecor').textContent = 'Вернуть скрытые детали (' + nHid + ')';
       var ul = $('todo'); ul.innerHTML = '';
       Z.SPREADS[ui.sp].forEach(function (pg) {
         D.pages[pg].photos.forEach(function (ph) { addTodo(ul, 'Фото · ' + pageName(pg), filledPhoto(ph.id), function () { select('photo', ph.id, pg); }); });
@@ -159,16 +210,26 @@
       $('zoom').value = k; $('zoomVal').textContent = k + '%';
     } else if (sel.kind === 'text') {
       $('pText').hidden = false;
+      var tc = state.textColors[sel.id] || it.color;
+      fill('txtSw', swatch(Z.PAL, tc, function (c) { setTextColor(sel.id, c, true); })
+        .concat([anyColor(tc, function (c) { setTextColor(sel.id, c, false); }, function (c) { setTextColor(sel.id, c, true); })]));
       var ta = $('txt'); if (document.activeElement !== ta) ta.value = state.texts[sel.id] !== undefined ? state.texts[sel.id] : it.text;
     } else if (sel.kind === 'decor') {
       $('pDecor').hidden = false;
       var cur = state.decor[sel.id] || {};
       fill('decorSw', swatch(Z.PAL, cur.color || it.color, function (c) { state.decor[sel.id] = Object.assign({}, cur, { color: c }); persist(); render(); }));
-      $('hideDecor').textContent = cur.hidden ? 'Показать деталь' : 'Скрыть деталь';
     } else {
       $('pPage').hidden = false;
-      fill('bgSw', swatch(Z.PAL, state.bgs[sel.id] || it.bg, function (c) { state.bgs[sel.id] = c; persist(); render(); }));
+      fill('bgSw', bgNodes(sel.id));
     }
+    var rows = $('bgRows'); rows.innerHTML = '';
+    Z.SPREADS[ui.sp].slice().sort(function (a, b) { return a === 8 ? -1 : b === 8 ? 1 : a - b; }).forEach(function (pg) {
+      var r = el('div', 'bgrow'); r.appendChild(el('span', 'hint'));
+      r.firstChild.textContent = pageName(pg).charAt(0).toUpperCase() + pageName(pg).slice(1);
+      var sw = el('div', 'swatches'); sw.setAttribute('role', 'radiogroup'); sw.setAttribute('aria-label', 'Фон: ' + pageName(pg));
+      bgNodes(pg).forEach(function (n) { sw.appendChild(n); }); r.appendChild(sw); rows.appendChild(r);
+    });
+    $('bgSec').hidden = !!(sel && sel.kind === 'page');
     $('penBtn').textContent = ui.pen ? 'Карандаш в руке — нажми, чтобы убрать' : 'Взять карандаш';
     $('penBtn').setAttribute('aria-pressed', ui.pen ? 'true' : 'false');
     $('pen').classList.toggle('is-on', ui.pen);
@@ -200,16 +261,20 @@
   $('zoom').addEventListener('input', function (e) {
     if (!ui.sel) return; var cur = state.photos[ui.sel.id] || {};
     state.photos[ui.sel.id] = Object.assign({}, cur, { k: Number(e.target.value) / 100 });
-    $('zoomVal').textContent = e.target.value + '%'; renderSpread();
+    $('zoomVal').textContent = e.target.value + '%'; renderSpread(); queueThumb(ui.sp);
   });
   $('zoom').addEventListener('change', persist);
   $('txt').addEventListener('input', function (e) { if (!ui.sel) return; state.texts[ui.sel.id] = e.target.value; persist(); renderSpread(); renderThumbsAndProgress(); });
-  $('hideDecor').addEventListener('click', function () { if (!ui.sel) return; var cur = state.decor[ui.sel.id] || {}; state.decor[ui.sel.id] = Object.assign({}, cur, { hidden: !cur.hidden }); persist(); render(); });
+  $('hideDecor').addEventListener('click', function () { if (!ui.sel) return; var cur = state.decor[ui.sel.id] || {}; state.decor[ui.sel.id] = Object.assign({}, cur, { hidden: true }); ui.sel = null; persist(); render(); });
+  $('showDecor').addEventListener('click', function () {
+    Z.SPREADS[ui.sp].forEach(function (pg) { D.pages[pg].decor.forEach(function (d) { if (state.decor[d.id]) delete state.decor[d.id].hidden; }); });
+    persist(); render();
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-reset]'), function (b) {
     b.addEventListener('click', function () {
       if (!ui.sel) return;
       if (ui.sel.kind === 'photo') delete state.photos[ui.sel.id];
-      if (ui.sel.kind === 'text') { delete state.texts[ui.sel.id]; $('txt').value = item().text; }
+      if (ui.sel.kind === 'text') { delete state.texts[ui.sel.id]; delete state.textColors[ui.sel.id]; $('txt').value = item().text; }
       persist(); render();
     });
   });
@@ -228,5 +293,6 @@
 
   function render() { renderThumbsAndProgress(); renderSpread(); renderPanel(); }
   layout(); render();
+  [0, 1, 2, 3].forEach(queueThumb);
   if (document.fonts) document.fonts.ready.then(renderSpread);
 })();

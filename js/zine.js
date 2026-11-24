@@ -17,7 +17,7 @@
     mono: { family: "'PT Mono', 'Courier New', monospace", weight: 400, size: 24, lh: 31, ls: 0, wrap: true }
   };
 
-  function emptyState() { return { photos: {}, texts: {}, decor: {}, bgs: {}, strokes: {} }; }
+  function emptyState() { return { photos: {}, texts: {}, decor: {}, bgs: {}, strokes: {}, textColors: {} }; }
   function load() {
     try { var s = JSON.parse(localStorage.getItem(STORE)); if (s && s.photos) return s; } catch (e) {}
     return emptyState();
@@ -97,6 +97,34 @@
     return out;
   }
 
+  // Подгонка текста: свой текст занимает не больше строк, чем текст шаблона в этом месте.
+  // Если не помещается — кегль плавно уменьшается (до 60%), слова не рвутся посередине.
+  var fitCtx = null, fitCache = {};
+  function setFont(ctx, F, size) {
+    ctx.font = F.weight + ' ' + size + 'px ' + F.family;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = (F.ls * size) + 'px';
+  }
+  function fitText(t, val) {
+    var key = t.id + '\u0001' + val;
+    if (fitCache[key]) return fitCache[key];
+    var F = FONTS[t.style], maxW = t.w - 12;
+    if (!fitCtx) fitCtx = document.createElement('canvas').getContext('2d');
+    var ctx = fitCtx;
+    setFont(ctx, F, F.size);
+    var budget = Math.max(1, lines(ctx, t.text, maxW, F.wrap).length);
+    var res = null;
+    for (var s = 1; s >= 0.6 - 1e-9; s -= 0.02) {
+      var size = F.size * s;
+      setFont(ctx, F, size);
+      var ls = lines(ctx, val, maxW, F.wrap);
+      var wide = ls.some(function (ln) { return ctx.measureText(ln).width > maxW + 0.5; });
+      res = { size: size, lh: F.lh * s, lines: ls };
+      if (ls.length <= budget && !wide) break;
+    }
+    if (!document.fonts || document.fonts.status === 'loaded') fitCache[key] = res;   // пока шрифты грузятся — не запоминаем
+    return res;
+  }
+
   var imgCache = {};
   function loadImg(src) {
     if (!imgCache[src]) imgCache[src] = new Promise(function (res, rej) { var i = new Image(); i.onload = function () { res(i); }; i.onerror = rej; i.src = src; });
@@ -128,14 +156,14 @@
       P.texts.forEach(function (t) {
         var F = FONTS[t.style], val = state.texts[t.id] !== undefined ? state.texts[t.id] : t.text;
         ctx.save();
-        ctx.font = F.weight + ' ' + F.size + 'px ' + F.family;
-        if ('letterSpacing' in ctx) ctx.letterSpacing = (F.ls * F.size) + 'px';
-        ctx.fillStyle = t.color; ctx.textBaseline = 'middle';
+        var fit = fitText(t, val);
+        setFont(ctx, F, fit.size);
+        ctx.fillStyle = (state.textColors || {})[t.id] || t.color; ctx.textBaseline = 'middle';
         var maxW = t.w - 12;
-        lines(ctx, val, maxW, F.wrap).forEach(function (ln, i) {
+        fit.lines.forEach(function (ln, i) {
           var w = ctx.measureText(ln).width;
           var x = t.x + 6 + (t.align === 'right' ? maxW - w : 0);
-          ctx.fillText(ln, x, t.y + 4 + F.lh * i + F.lh / 2);
+          ctx.fillText(ln, x, t.y + 4 + fit.lh * i + fit.lh / 2);
         });
         ctx.restore();
       });
@@ -187,6 +215,21 @@
     });
   }
 
+  // Один разворот (две страницы рядом) — для живых миниатюр в редакторе
+  function renderSpread(canvas, i, state) {
+    var k = canvas.width / (PAGE_W * 2);
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return fontsReady().then(function () {
+      return SPREADS[i].reduce(function (p, pg, side) {
+        return p.then(function () {
+          ctx.save(); ctx.scale(k, k); ctx.translate(side * PAGE_W, 0);
+          return drawPage(ctx, pg, state).then(function () { drawStrokesOnPage(ctx, pg, state); ctx.restore(); });
+        });
+      }, Promise.resolve());
+    });
+  }
+
   // Минимальный PDF: одна страница A4 альбомная с JPEG на весь лист
   function pdfFromJpeg(dataUrl, wPx, hPx) {
     var bin = atob(dataUrl.split(',')[1]);
@@ -213,6 +256,6 @@
   window.ZINK = {
     DATA: DATA, SPREADS: SPREADS, PAGE_W: PAGE_W, PAGE_H: PAGE_H, PAL: PAL, INKS: INKS, FONTS: FONTS,
     load: load, save: save, reset: reset, progress: progress, photoBox: photoBox,
-    pencilSvg: pencilSvg, renderSheet: renderSheet, pdfFromJpeg: pdfFromJpeg, fontsReady: fontsReady
+    pencilSvg: pencilSvg, renderSheet: renderSheet, renderSpread: renderSpread, fitText: fitText, pdfFromJpeg: pdfFromJpeg, fontsReady: fontsReady
   };
 })();

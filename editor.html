@@ -9,6 +9,10 @@
 <meta property="og:description" content="Кривенько — значит искренне">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ZINK">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@700&family=PT+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -49,6 +53,9 @@
 .ghost:hover { color: #111111; }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .sw { width: 28px; height: 28px; cursor: pointer; padding: 0; }
+.sw--any { position: relative; display: inline-block; background: conic-gradient(#D9443F, #F8F40A, #88A48A, #2F9FD9, #0026A9, #B04FC9, #D9443F); border: 1px solid #D6D6D2; }
+.sw--any input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.bgrow { display: flex; flex-direction: column; gap: 8px; }
 .sw[aria-checked="true"] { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3px #111111; }
 .file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 .file:focus-visible + span { outline: 2px solid #2F5BEA; outline-offset: 2px; }
@@ -116,6 +123,7 @@ textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px soli
       <div class="sec" id="pNone">
         <p>Нажми на фото или текст на развороте и замени на своё. Пунктиром отмечено то, что ещё осталось из шаблона.</p>
         <ul class="todo-list" id="todo"></ul>
+        <button type="button" class="ghost" id="showDecor" hidden></button>
       </div>
 
       <div class="sec" id="pPhoto" hidden>
@@ -133,6 +141,8 @@ textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px soli
       <div class="sec" id="pText" hidden>
         <label for="txt" class="mono">Текст</label>
         <textarea id="txt" rows="6"></textarea>
+        <span class="mono">Цвет текста</span>
+        <div class="swatches" role="radiogroup" aria-label="Цвет текста" id="txtSw"></div>
         <p class="hint">Шрифт и размер задаёт шаблон — текст встанет ровно на своё место.</p>
         <button type="button" class="ghost" data-reset>вернуть как было</button>
       </div>
@@ -146,6 +156,11 @@ textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px soli
       <div class="sec" id="pPage" hidden>
         <span class="mono">Фон страницы</span>
         <div class="swatches" role="radiogroup" aria-label="Фон страницы" id="bgSw"></div>
+      </div>
+
+      <div class="sec" id="bgSec">
+        <span class="mono">Фон страниц</span>
+        <div id="bgRows" style="display:flex;flex-direction:column;gap:14px"></div>
       </div>
 
       <div class="sec">
