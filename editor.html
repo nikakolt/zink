@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZINK — редактор</title>
-<meta name="description" content="Кривенько — значит искренне">
+<title>ZINK · редактор</title>
+<meta name="description" content="Кривенько, значит искренне">
 <meta property="og:title" content="ZINK">
-<meta property="og:description" content="Кривенько — значит искренне">
+<meta property="og:description" content="Кривенько, значит искренне">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ZINK">
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -40,8 +40,12 @@
 .strokes { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 60; pointer-events: none; }
 .pen { position: absolute; inset: 0; z-index: 70; cursor: crosshair; touch-action: none; display: none; }
 .pen.is-on { display: block; }
+.pen.is-erase { cursor: none; }
+.eraser-dot { position: absolute; transform: translate(-50%, -50%); border: 1.5px solid #111111; border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none; }
+#penBtn[aria-pressed="true"], #eraseBtn[aria-pressed="true"] { background: #111111; color: #FFFFFF; }
 
 .ed__panel { border-left: 1px solid #E3E3DF; display: flex; flex-direction: column; overflow-y: auto; }
+.ed__panel > * { flex: none; }
 .sec { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #E3E3DF; }
 .sec:last-child { border-bottom: 0; }
 .sec__title { font-weight: 600; font-size: 20px; letter-spacing: -0.02em; }
@@ -63,6 +67,58 @@
 textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px solid #D6D6D2; border-radius: 0; padding: 10px; resize: vertical; }
 .toast { font-size: 12px; color: #8A4A12; }
 [hidden] { display: none !important; }
+.pbar { position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; background: #FFFFFF; border-bottom: 1px solid #E3E3DF; }
+.tabs { display: flex; border: 1px solid #D6D6D2; }
+.tabs button { flex: 1; min-height: 34px; border: 0; border-right: 1px solid #D6D6D2; background: #FFFFFF; cursor: pointer; font: 500 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .02em; color: #4A4A4A; }
+.tabs button:last-child { border-right: 0; }
+.tabs button[aria-selected="true"] { background: #111111; color: #FFFFFF; }
+.pbar .ghost { align-self: flex-start; min-height: 20px; }
+.selc { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 20px; border-bottom: 1px solid #E3E3DF; background: #FAFAF8; }
+.selc__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.selc__head > div { display: flex; flex-direction: column; gap: 2px; }
+.selc__x { width: 30px; height: 30px; margin: -4px -6px 0 0; border: 0; background: transparent; cursor: pointer; font: 300 22px/30px Inter, sans-serif; color: #6B6B67; }
+.selc__x:hover { color: #111111; }
+.grp { display: flex; flex-direction: column; gap: 12px; }
+.acc { border-bottom: 1px solid #E3E3DF; }
+.acc > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; font: 500 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .02em; user-select: none; }
+.acc > summary::-webkit-details-marker { display: none; }
+.acc > summary::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid #111111; border-bottom: 1.5px solid #111111; transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s; }
+.acc[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.acc > summary:hover { background: #FAFAF8; }
+.acc__body { display: flex; flex-direction: column; gap: 12px; padding: 0 20px 20px; }
+.acc .todo-list button:first-child { border-top: 0; }
+.ed__panel p { margin: 0; }
+.ed__panel .hint { font-size: 13px; line-height: 1.5; color: #6B6B67; }
+.ed__panel .toast { font-size: 12px; line-height: 1.45; color: #8A4A12; }
+.modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(20,20,19,.38); }
+.modal__box { position: relative; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px; padding: 28px 28px 24px; background: #FFFFFF; box-shadow: 0 24px 60px rgba(0,0,0,.22); }
+.modal__title { margin: 0 0 6px; font-weight: 600; font-size: 22px; letter-spacing: -0.03em; }
+.modal__x { position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border: 0; background: transparent; cursor: pointer; font: 300 24px/32px Inter, sans-serif; color: #6B6B67; }
+.modal__x:hover { color: #111111; }
+.modal input { height: 44px; padding: 0 12px; border: 1px solid #D6D6D2; border-radius: 0; font: 400 15px Inter, sans-serif; color: #111111; }
+.modal input:focus { outline: none; border-color: #111111; }
+.modal__note { margin: 0; font-size: 12px; line-height: 1.45; color: #8A8A86; }
+.modal__acts { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; }
+.modal__acts .btn { min-height: 44px; }
+.modal__acts .btn:disabled { background: #BDBDB8; cursor: default; }
+.modal__acts .ghost { align-self: center; }
+.acts { display: flex; gap: 16px; flex-wrap: wrap; }
+.seg { display: flex; border: 1px solid #D6D6D2; }
+.seg__b { flex: 1; min-height: 34px; border: 0; border-right: 1px solid #D6D6D2; background: #FFFFFF; cursor: pointer; font-size: 13px; }
+.seg__b:last-child { border-right: 0; }
+.seg__b[aria-pressed="true"] { background: #111111; color: #FFFFFF; }
+.free { box-sizing: border-box; }
+.frame { box-sizing: border-box; border: 1.5px solid #FF2D8A; cursor: move; touch-action: none; }
+.frame.is-edit { cursor: text; }
+.hdl { position: absolute; width: 11px; height: 11px; background: #FFFFFF; border: 1.5px solid #FF2D8A; box-sizing: border-box; touch-action: none; }
+.hdl--nw { left: -6px; top: -6px; cursor: nwse-resize; } .hdl--se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.hdl--ne { right: -6px; top: -6px; cursor: nesw-resize; } .hdl--sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.hdl--w { left: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; } .hdl--e { right: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.badge { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 8px); background: #FF2D8A; color: #FFFFFF; font: 500 13px Inter, sans-serif; padding: 2px 6px; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+.edit { outline: none; white-space: pre-wrap; overflow-wrap: break-word; min-height: 1em; cursor: text; user-select: text; -webkit-user-select: text; }
+.guide { background: #F24822; z-index: 59; pointer-events: none; }
+.safe { border: 0 dashed rgba(242,72,34,.5); z-index: 57; pointer-events: none; }
+.safe__label { z-index: 57; pointer-events: none; font: 500 10px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .03em; color: rgba(242,72,34,.75); background: rgba(255,255,255,.7); padding: 1px 4px; }
 
 /* Планшет: панель уже */
 @media (max-width: 1100px) { .ed { grid-template-columns: 170px minmax(0, 1fr) 280px; } }
@@ -91,7 +147,7 @@ textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px soli
         <li><a href="print.html">03 печать</a></li>
       </ol>
     </nav>
-    <div class="topbar__right"><a class="btn" href="print.html" style="min-height:40px;padding:0 18px;font-size:14px">Готово → печать</a></div>
+    <div class="topbar__right"><a class="btn" href="print.html" id="toPrint" style="min-height:40px;padding:0 18px;font-size:14px">Готово → печать</a></div>
   </header>
 
   <div class="ed">
@@ -109,72 +165,135 @@ textarea { font: 400 14px 'PT Mono', monospace; color: #111111; border: 1px soli
           <div id="layers"></div>
           <div class="spine" aria-hidden="true"></div>
           <svg class="strokes" id="strokes" viewBox="0 0 1190 842" aria-hidden="true"></svg>
-          <div class="pen" id="pen" role="img" aria-label="Холст для подписи от руки"></div>
+          <div class="pen" id="pen" role="img" aria-label="Холст для подписи от руки"><i class="eraser-dot" id="eraserDot" hidden></i></div>
         </div>
       </div>
     </main>
 
     <aside class="ed__panel" aria-label="Настройки">
-      <div class="sec">
-        <span class="mono muted" id="kicker" hidden></span>
-        <span class="sec__title" id="panelTitle">Что заполнить</span>
+      <!-- страница: какую правим и очистка от шаблона -->
+      <div class="pbar">
+        <div class="tabs" id="pageTabs" role="tablist" aria-label="Страница разворота"></div>
+        <button type="button" class="btn btn--outline btn--block" id="clearBtn" style="min-height:40px;font-size:13px">Очистить страницу от шаблона</button>
+        <a class="ghost" id="swapPage" hidden>заменить страницу</a>
       </div>
 
-      <div class="sec" id="pNone">
-        <p>Нажми на фото или текст на развороте и замени на своё. Пунктиром отмечено то, что ещё осталось из шаблона.</p>
-        <ul class="todo-list" id="todo"></ul>
-        <button type="button" class="ghost" id="showDecor" hidden></button>
-      </div>
-
-      <div class="sec" id="pPhoto" hidden>
+      <!-- выбранный элемент -->
+      <div class="selc" id="selCard" hidden>
+        <div class="selc__head">
+          <div><span class="mono muted" id="kicker"></span><span class="sec__title" id="panelTitle"></span></div>
+          <button type="button" class="selc__x" id="selClose" aria-label="Снять выделение">×</button>
+        </div>
+      <div class="grp" id="pPhoto" hidden>
         <label style="position:relative;display:block">
           <input type="file" accept="image/*" class="file" id="upload">
           <span class="btn btn--outline btn--block" style="min-height:40px;font-size:13px">Заменить фото</span>
         </label>
         <label for="zoom" class="mono" style="display:flex;justify-content:space-between;margin-top:4px"><span>Масштаб</span><span id="zoomVal">100%</span></label>
         <input id="zoom" type="range" min="100" max="300" step="5" value="100" class="range">
-        <p class="hint">Перетащи фото внутри рамки, чтобы выбрать кадр. Рамка остаётся на месте — вёрстка не сломается.</p>
+        <p class="hint">Перетащи фото внутри рамки, чтобы выбрать кадр. Рамка остаётся на месте, вёрстка не сломается.</p>
         <button type="button" class="ghost" data-reset>вернуть как было</button>
-        <span class="toast" id="saveWarn" hidden>Фото слишком тяжёлые для сохранения в браузере — правки пропадут после перезагрузки.</span>
+        <span class="toast" id="saveWarn" hidden>Фото слишком тяжёлые для сохранения в браузере, правки пропадут после перезагрузки.</span>
       </div>
-
-      <div class="sec" id="pText" hidden>
+      <div class="grp" id="pText" hidden>
         <label for="txt" class="mono">Текст</label>
         <textarea id="txt" rows="6"></textarea>
         <span class="mono">Цвет текста</span>
         <div class="swatches" role="radiogroup" aria-label="Цвет текста" id="txtSw"></div>
-        <p class="hint">Шрифт и размер задаёт шаблон — текст встанет ровно на своё место.</p>
+        <p class="hint">Шрифт и размер задаёт шаблон, текст встанет ровно на своё место.</p>
+        <p class="toast" id="txtFit" hidden></p>
         <button type="button" class="ghost" data-reset>вернуть как было</button>
       </div>
-
-      <div class="sec" id="pDecor" hidden>
+      <div class="grp" id="pDecor" hidden>
         <span class="mono">Цвет</span>
         <div class="swatches" role="radiogroup" aria-label="Цвет детали" id="decorSw"></div>
         <button type="button" class="btn btn--outline btn--block" id="hideDecor" style="min-height:40px;font-size:13px">Скрыть деталь</button>
       </div>
-
-      <div class="sec" id="pPage" hidden>
-        <span class="mono">Фон страницы</span>
-        <div class="swatches" role="radiogroup" aria-label="Фон страницы" id="bgSw"></div>
+      <div class="grp" id="pFreeText" hidden>
+        <label for="ftxt" class="mono">Текст</label>
+        <textarea id="ftxt" rows="4"></textarea>
+        <span class="mono">Шрифт</span>
+        <div class="seg" id="fFont"></div>
+        <label for="fSize" class="mono" style="display:flex;justify-content:space-between"><span>Размер</span><span id="fSizeVal"></span></label>
+        <input id="fSize" type="range" min="12" max="140" step="1" value="40" class="range">
+        <span class="mono">Выравнивание</span>
+        <div class="seg" id="fAlign"></div>
+        <span class="mono">Цвет</span>
+        <div class="swatches" role="radiogroup" aria-label="Цвет текста" id="fColor"></div>
+        <p class="toast" id="fOut" hidden>Часть текста за краем страницы и не попадёт в печать.</p>
+        <p class="hint">Двойной клик: печатать прямо на странице. Тяни, чтобы двигать. Ручки по бокам меняют ширину, по углам меняют размер целиком. Стрелки сдвигают на 1 px, с Shift на 10. ⌘D делает копию.</p>
+        <div class="acts"><button type="button" class="ghost" data-up>выше</button><button type="button" class="ghost" data-down>ниже</button><button type="button" class="ghost" data-del>удалить</button></div>
+      </div>
+      <div class="grp" id="pFreeImg" hidden>
+        <label style="position:relative;display:block">
+          <input type="file" accept="image/*" class="file" id="fReplace">
+          <span class="btn btn--outline btn--block" style="min-height:40px;font-size:13px">Заменить фото</span>
+        </label>
+        <p class="toast" id="iOut" hidden>Часть фото за краем страницы и не попадёт в печать.</p>
+        <p class="hint">Тяни, чтобы двигать. Любой угол меняет размер. Стрелки сдвигают на 1 px, с Shift на 10. ⌘D делает копию.</p>
+        <div class="acts"><button type="button" class="ghost" data-up>выше</button><button type="button" class="ghost" data-down>ниже</button><button type="button" class="ghost" data-del>удалить</button></div>
+      </div>
       </div>
 
-      <div class="sec" id="bgSec">
-        <span class="mono">Фон страниц</span>
-        <div id="bgRows" style="display:flex;flex-direction:column;gap:14px"></div>
-      </div>
-
-      <div class="sec">
-        <span class="mono">Подпись от руки</span>
-        <button type="button" class="btn btn--outline btn--block" id="penBtn" aria-pressed="false" style="min-height:40px;font-size:13px">Взять карандаш</button>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="swatches" role="radiogroup" aria-label="Цвет карандаша" id="inkSw"></div>
-          <button type="button" class="ghost" id="undo" style="align-self:center">отменить</button>
+      <details class="acc" id="accTodo" open>
+        <summary>Что заполнить</summary>
+        <div class="acc__body">
+          <p class="hint" id="todoHint">Нажми на фото или текст на развороте и замени на своё. Пунктиром отмечено то, что ещё осталось из шаблона.</p>
+          <ul class="todo-list" id="todo"></ul>
+          <p class="hint" id="todoClear" hidden>Страница очищена от шаблона: добавь свой текст или фото.</p>
+          <button type="button" class="ghost" id="showDecor" hidden></button>
         </div>
-      </div>
+      </details>
+
+      <details class="acc" id="accAdd">
+        <summary>Добавить своё</summary>
+        <div class="acc__body">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn--outline" id="addTextBtn" style="flex:1;min-height:40px;font-size:13px">+ Текст</button>
+            <button type="button" class="btn btn--outline" id="addImgBtn" style="flex:1;min-height:40px;font-size:13px">+ Фото</button>
+          </div>
+          <input type="file" accept="image/*" class="file" id="addImg" tabindex="-1" aria-hidden="true">
+          <p class="hint">Появится на выбранной странице, его можно двигать и менять размер.</p>
+        </div>
+      </details>
+
+      <details class="acc" id="accBg">
+        <summary>Фон страницы</summary>
+        <div class="acc__body"><div class="swatches" role="radiogroup" aria-label="Фон страницы" id="bgSw"></div></div>
+      </details>
+
+      <details class="acc" id="accPen">
+        <summary>Карандаш</summary>
+        <div class="acc__body">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn--outline" id="penBtn" aria-pressed="false" style="flex:1;min-height:40px;font-size:13px;padding:0 10px">Рисовать</button>
+            <button type="button" class="btn btn--outline" id="eraseBtn" aria-pressed="false" style="flex:1;min-height:40px;font-size:13px;padding:0 10px">Ластик</button>
+          </div>
+          <div class="swatches" role="radiogroup" aria-label="Цвет карандаша" id="inkSw"></div>
+          <p class="hint" id="penHint">Выбери цвет и рисуй прямо на развороте. Нажми «Рисую» ещё раз, чтобы снова двигать элементы.</p>
+          <p class="hint" id="eraseHint" hidden>Проведи по линии, и она сотрётся целиком. «Отменить» вернёт стёртое.</p>
+          <button type="button" class="ghost" id="undo">отменить</button>
+        </div>
+      </details>
     </aside>
   </div>
 </div>
-<script src="js/tpl1-data.js"></script>
+<div class="modal" id="saveModal" hidden>
+  <form class="modal__box" id="saveForm" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <button type="button" class="modal__x" id="saveClose" aria-label="Закрыть">×</button>
+    <h2 class="modal__title" id="saveTitle">Сохранить зин в шаблоны</h2>
+    <label for="saveName" class="mono">Название</label>
+    <input id="saveName" type="text" maxlength="60" placeholder="Например, «Наше лето»" autocomplete="off">
+    <p class="modal__note">Шаблон сохранится на странице шаблонов, в разделе «Мои шаблоны».</p>
+    <p class="modal__note" id="saveNote" hidden style="color:#8A4A12">Не получилось сохранить: в браузере не хватило места. Можно перейти к печати без сохранения.</p>
+    <div class="modal__acts">
+      <button type="submit" class="btn" id="saveOk" disabled>Сохранить и к печати</button>
+      <button type="button" class="ghost" id="saveSkip">не сохранять</button>
+    </div>
+  </form>
+</div>
+<script src="js/my.js"></script>
+<script src="js/tpl-loader.js"></script>
 <script src="js/zine.js"></script>
 <script src="js/editor.js"></script>
 </body>

@@ -1,9 +1,13 @@
-// ZINK — общее для редактора и печати: состояние зина, отрисовка страниц, карандаш, PDF
+// ZINK · общее для редактора и печати: состояние зина, отрисовка страниц, карандаш, PDF
 (function () {
-  var DATA = window.ZINK_TPL1;
+  var T = window.ZINK_T || '1';
+  var DATA = window['ZINK_TPL' + T] || window.ZINK_TPL1;
   var PAGE_W = 595, PAGE_H = 842;                 // страница в единицах макета (A7 на листе A4)
   var SPREADS = [[8, 1], [2, 3], [4, 5], [6, 7]];   // развороты: слева/справа
-  var STORE = 'zink-tpl1-v1';
+  // Какие края страницы: это край листа A4 (верхний ряд на листе перевёрнут). Здесь печать без полей может срезать
+  var SHEET_EDGES = { 1: ['b', 'r'], 2: ['b', 'l'], 3: ['b'], 4: ['b'], 5: ['b', 'r'], 6: ['b', 'l'], 7: ['b'], 8: ['b'] };
+  var SAFE = 40;   // 5 мм в единицах страницы (страница 74,25 мм = 595)
+  var KEY = window.ZINK_KEY || ('t' + T), DRAFT = 'zink-draft-v2';   // черновик открытого зина: один на всех, с ключом шаблона
 
   var PAL = [
     { name: 'Синий', c: '#0026A9' }, { name: 'Жёлтый', c: '#F8F40A' }, { name: 'Зелёный', c: '#88A48A' },
@@ -11,27 +15,31 @@
   ];
   var INKS = [{ name: 'Графит', c: '#46464A' }, { name: 'Синий', c: '#0026A9' }, { name: 'Белый', c: '#FFFFFF' }, { name: 'Красный', c: '#D9443F' }];
 
-  // Шрифты шаблона: заголовок — узкий жирный гротеск, остальное — моноширинный
+  // Шрифты шаблона: заголовок: узкий жирный гротеск, остальное: моноширинный
   var FONTS = {
     head: { family: "'PT Sans Narrow', 'Arial Narrow', sans-serif", weight: 700, size: 66, lh: 66 * 1.05, ls: 0.02, wrap: false },
     mono: { family: "'PT Mono', 'Courier New', monospace", weight: 400, size: 24, lh: 31, ls: 0, wrap: true }
   };
+  // У шаблона могут быть свои шрифты и палитра
+  if (DATA.fonts) Object.keys(DATA.fonts).forEach(function (k) { FONTS[k] = DATA.fonts[k]; });
+  if (DATA.pal) PAL = DATA.pal;
 
-  function emptyState() { return { photos: {}, texts: {}, decor: {}, bgs: {}, strokes: {}, textColors: {} }; }
+  function emptyState() { return { photos: {}, texts: {}, decor: {}, bgs: {}, strokes: {}, textColors: {}, free: {} }; }
   function load() {
-    try { var s = JSON.parse(localStorage.getItem(STORE)); if (s && s.photos) return s; } catch (e) {}
+    try { var d = JSON.parse(localStorage.getItem(DRAFT)); if (d && d.key === KEY && d.state && d.state.photos) return d.state; } catch (e) {}
     return emptyState();
   }
   function save(state) {
-    try { localStorage.setItem(STORE, JSON.stringify(state)); return true; } catch (e) { return false; }
+    try { localStorage.setItem(DRAFT, JSON.stringify({ key: KEY, state: state })); return true; } catch (e) { return false; }
   }
-  function reset() { try { localStorage.removeItem(STORE); } catch (e) {} }
+  function reset() { try { localStorage.removeItem(DRAFT); } catch (e) {} }
 
   // Сколько мест заполнено своим
   function progress(state) {
     var total = 0, done = 0, left = {};
     Object.keys(DATA.pages).forEach(function (pg) {
       var P = DATA.pages[pg];
+      if (((state.free || {})[pg] || {}).cleared) return;   // очищенная страница: места шаблона не считаем
       P.photos.forEach(function (ph) { total++; if (state.photos[ph.id] && state.photos[ph.id].user) done++; else left[pg] = (left[pg] || 0) + 1; });
       P.texts.forEach(function (t) { total++; if (state.texts[t.id] !== undefined && state.texts[t.id] !== t.text) done++; else left[pg] = (left[pg] || 0) + 1; });
     });
@@ -98,7 +106,7 @@
   }
 
   // Подгонка текста: свой текст занимает не больше строк, чем текст шаблона в этом месте.
-  // Если не помещается — кегль плавно уменьшается (до 60%), слова не рвутся посередине.
+  // Если не помещается: кегль плавно уменьшается (до 60%), слова не рвутся посередине.
   var fitCtx = null, fitCache = {};
   function setFont(ctx, F, size) {
     ctx.font = F.weight + ' ' + size + 'px ' + F.family;
@@ -113,16 +121,56 @@
     setFont(ctx, F, F.size);
     var budget = Math.max(1, lines(ctx, t.text, maxW, F.wrap).length);
     var res = null;
-    for (var s = 1; s >= 0.6 - 1e-9; s -= 0.02) {
+    for (var s = 1; s >= 0.4 - 1e-9; s -= 0.02) {
       var size = F.size * s;
       setFont(ctx, F, size);
       var ls = lines(ctx, val, maxW, F.wrap);
       var wide = ls.some(function (ln) { return ctx.measureText(ln).width > maxW + 0.5; });
-      res = { size: size, lh: F.lh * s, lines: ls };
-      if (ls.length <= budget && !wide) break;
+      // сколько строк влезает по высоте при этом кегле (мелкий кегль: больше строк в том же месте)
+      var cap = Math.max(budget, Math.floor(budget / s + 1e-6));
+      res = { size: size, lh: F.lh * s, lines: ls, small: s < 0.999 };
+      if (ls.length <= cap && !wide) break;
     }
-    if (!document.fonts || document.fonts.status === 'loaded') fitCache[key] = res;   // пока шрифты грузятся — не запоминаем
+    // Совсем не влезает: лишнее обрезается, чтобы текст не уезжал за своё место
+    var capEnd = Math.max(budget, Math.floor(budget / (res.size / F.size) + 1e-6));
+    if (res.lines.length > capEnd) {
+      res.lines = res.lines.slice(0, capEnd);
+      res.lines[capEnd - 1] = res.lines[capEnd - 1].replace(/\s*\S*$/, '') + '…';
+      res.cut = true;
+    }
+    if (!document.fonts || document.fonts.status === 'loaded') fitCache[key] = res;   // пока шрифты грузятся: не запоминаем
     return res;
+  }
+
+  // Свои тексты на странице: три шрифта на выбор
+  var FREE_FONTS = {
+    sans: { family: "Helvetica, 'Helvetica Neue', Arial, sans-serif", weight: 400, name: 'Гротеск' },
+    mono: { family: "'PT Mono', 'Courier New', monospace", weight: 400, name: 'Машинка' },
+    narrow: { family: "'PT Sans Narrow', 'Arial Narrow', sans-serif", weight: 700, name: 'Узкий' }
+  };
+  function freeLayout(it) {
+    if (!fitCtx) fitCtx = document.createElement('canvas').getContext('2d');
+    var F = FREE_FONTS[it.font] || FREE_FONTS.sans, ctx = fitCtx;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    // Как в Фигме: ширина задана, высота растёт по тексту, кегль не меняется сам
+    var size = it.size;
+    ctx.font = F.weight + ' ' + size + 'px ' + F.family;
+    var ls = lines(ctx, it.text === '' ? ' ' : it.text, it.w, true), lh = size * 1.2;
+    return { lines: ls, lh: lh, h: Math.max(1, ls.length) * lh, F: F, size: size };
+  }
+  function drawFree(ctx, it, img) {
+    if (it.type === 'img') { if (img) ctx.drawImage(img, it.x, it.y, it.w, it.h); return; }
+    var L = freeLayout(it);
+    ctx.save();
+    ctx.font = L.F.weight + ' ' + L.size + 'px ' + L.F.family;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.fillStyle = it.color; ctx.textBaseline = 'alphabetic';
+    L.lines.forEach(function (ln, i) {
+      var w = ctx.measureText(ln).width;
+      var x = it.x + (it.align === 'right' ? it.w - w : it.align === 'center' ? (it.w - w) / 2 : 0);
+      ctx.fillText(ln, x, it.y + i * L.lh + L.lh / 2 + 0.347 * L.size);
+    });
+    ctx.restore();
   }
 
   var imgCache = {};
@@ -134,18 +182,28 @@
   // Отрисовка одной страницы на canvas в координатах страницы (595×842)
   function drawPage(ctx, pg, state) {
     var P = DATA.pages[pg];
+    // Очищенная страница: от шаблона остаётся только фон-цвет, дальше: свои тексты и фото
+    var FR = (state.free || {})[pg] || {}, clear = !!FR.cleared, items = FR.items || [];
+    var photos = clear ? [] : P.photos, decor = clear ? [] : P.decor, texts = clear ? [] : P.texts;
     var jobs = [];
-    P.photos.forEach(function (ph) { var st = state.photos[ph.id] || {}; jobs.push(loadImg(st.src || ph.src)); });
-    P.decor.forEach(function (d) { jobs.push(loadImg(d.mask)); });
+    photos.forEach(function (ph) { var st = state.photos[ph.id] || {}; jobs.push(loadImg(st.src || ph.src)); });
+    decor.forEach(function (d) { jobs.push(loadImg(d.mask)); });
+    var useBgImg = !clear && P.bgImg && !state.bgs[pg], bgAt = jobs.length;
+    if (useBgImg) jobs.push(loadImg(P.bgImg));
+    var freeAt = jobs.length;
+    items.forEach(function (it) { jobs.push(it.type === 'img' ? loadImg(it.src) : Promise.resolve(null)); });
     return Promise.all(jobs).then(function (imgs) {
       var n = 0;
-      ctx.fillStyle = state.bgs[pg] || P.bg; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
-      P.photos.forEach(function (ph) {
+      ctx.fillStyle = state.bgs[pg] || (clear ? '#FFFFFF' : P.bg); ctx.fillRect(0, 0, PAGE_W, PAGE_H);
+      if (useBgImg) ctx.drawImage(imgs[bgAt], 0, 0, PAGE_W, PAGE_H);   // фон-бумага шаблона
+      photos.forEach(function (ph) {
         var img = imgs[n++], st = state.photos[ph.id] || {}, b = photoBox(ph, st);
-        ctx.save(); ctx.beginPath(); ctx.rect(ph.x, ph.y, ph.w, ph.h); ctx.clip();
+        ctx.save();
+        if (ph.rot) { var cx = ph.x + ph.w / 2, cy = ph.y + ph.h / 2; ctx.translate(cx, cy); ctx.rotate(ph.rot * Math.PI / 180); ctx.translate(-cx, -cy); }
+        ctx.beginPath(); ctx.rect(ph.x, ph.y, ph.w, ph.h); ctx.clip();
         ctx.drawImage(img, ph.x + b.x, ph.y + b.y, b.bw, b.bh); ctx.restore();
       });
-      P.decor.forEach(function (d) {
+      decor.forEach(function (d) {
         var img = imgs[n++], st = state.decor[d.id] || {};
         if (st.hidden) return;
         var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -153,24 +211,27 @@
         x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0);
         ctx.drawImage(c, d.x, d.y, d.w, d.h);
       });
-      P.texts.forEach(function (t) {
+      texts.forEach(function (t) {
         var F = FONTS[t.style], val = state.texts[t.id] !== undefined ? state.texts[t.id] : t.text;
         ctx.save();
-        var fit = fitText(t, val);
+        if (t.rot) { ctx.translate(t.x, t.y); ctx.rotate(t.rot * Math.PI / 180); ctx.translate(-t.x, -t.y); }
+        var fit = fitText(t, val), sc = fit.size / F.size;
         setFont(ctx, F, fit.size);
-        ctx.fillStyle = (state.textColors || {})[t.id] || t.color; ctx.textBaseline = 'middle';
+        ctx.fillStyle = (state.textColors || {})[t.id] || t.color; ctx.textBaseline = F.bl ? 'alphabetic' : 'middle';
         var maxW = t.w - 12;
         fit.lines.forEach(function (ln, i) {
           var w = ctx.measureText(ln).width;
-          var x = t.x + 6 + (t.align === 'right' ? maxW - w : 0);
-          ctx.fillText(ln, x, t.y + 4 + fit.lh * i + fit.lh / 2);
+          var x = t.x + 6 + (t.align === 'right' ? maxW - w : t.align === 'center' ? (maxW - w) / 2 : 0);
+          var y = F.bl ? t.y + 4 + fit.lh * i + F.bl * sc : t.y + 4 + fit.lh * i + fit.lh / 2;
+          ctx.fillText(ln, x, y);
         });
         ctx.restore();
       });
+      items.forEach(function (it, k) { drawFree(ctx, it, imgs[freeAt + k]); });   // свои элементы: поверх шаблона
     });
   }
 
-  // Подпись от руки хранится по разворотам — рисуем свою половину на странице
+  // Подпись от руки хранится по разворотам: рисуем свою половину на странице
   function drawStrokesOnPage(ctx, pg, state) {
     SPREADS.forEach(function (sp, i) {
       var side = sp.indexOf(Number(pg)); if (side < 0) return;
@@ -215,7 +276,7 @@
     });
   }
 
-  // Один разворот (две страницы рядом) — для живых миниатюр в редакторе
+  // Один разворот (две страницы рядом): для живых миниатюр в редакторе
   function renderSpread(canvas, i, state) {
     var k = canvas.width / (PAGE_W * 2);
     var ctx = canvas.getContext('2d');
@@ -227,6 +288,16 @@
           return drawPage(ctx, pg, state).then(function () { drawStrokesOnPage(ctx, pg, state); ctx.restore(); });
         });
       }, Promise.resolve());
+    });
+  }
+
+  // Одна страница целиком: для 3D-зина на главной
+  function renderPage(canvas, pg, state) {
+    var k = canvas.width / PAGE_W, ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return fontsReady().then(function () {
+      ctx.save(); ctx.scale(k, k);
+      return drawPage(ctx, pg, state).then(function () { drawStrokesOnPage(ctx, pg, state); ctx.restore(); });
     });
   }
 
@@ -254,8 +325,8 @@
   }
 
   window.ZINK = {
-    DATA: DATA, SPREADS: SPREADS, PAGE_W: PAGE_W, PAGE_H: PAGE_H, PAL: PAL, INKS: INKS, FONTS: FONTS,
+    DATA: DATA, T: T, SHEET_EDGES: SHEET_EDGES, SAFE: SAFE, CUR: window.ZINK_CUR || { t: T, key: KEY }, emptyState: emptyState, SPREADS: SPREADS, PAGE_W: PAGE_W, PAGE_H: PAGE_H, PAL: PAL, INKS: INKS, FONTS: FONTS,
     load: load, save: save, reset: reset, progress: progress, photoBox: photoBox,
-    pencilSvg: pencilSvg, renderSheet: renderSheet, renderSpread: renderSpread, fitText: fitText, pdfFromJpeg: pdfFromJpeg, fontsReady: fontsReady
+    pencilSvg: pencilSvg, renderSheet: renderSheet, renderSpread: renderSpread, renderPage: renderPage, freeLayout: freeLayout, FREE_FONTS: FREE_FONTS, fitText: fitText, pdfFromJpeg: pdfFromJpeg, fontsReady: fontsReady
   };
 })();

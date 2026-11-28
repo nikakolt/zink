@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZINK · свой зин</title>
+<meta name="description" content="Кривенько, значит искренне">
+<meta property="og:title" content="ZINK">
+<meta property="og:description" content="Кривенько, значит искренне">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ZINK">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<style>
+.build { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 380px; }
+.zine { min-height: 0; overflow-y: auto; padding: 32px 48px; display: flex; flex-direction: column; gap: 22px; background: #F4F4F1; }
+.zine__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.zine__title { margin: 0; font-weight: 700; font-size: 36px; letter-spacing: -0.045em; line-height: 1; }
+.zine__hint { margin: 10px 0 0; max-width: 520px; font-size: 14px; line-height: 1.5; color: #4A4742; }
+.base { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+.ghost { background: transparent; border: 0; padding: 0; cursor: pointer; color: #4A4A4A; font: 500 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .02em; text-decoration: underline; text-underline-offset: 3px; }
+.ghost:hover { color: #111111; }
+
+/* 8 мест: обложка, 2–7, задник */
+.slots { --sw: min(150px, calc((100dvh - 61px - 64px - 110px - 80px) / 2 / 1.415 - 6px)); display: grid; grid-template-columns: repeat(4, var(--sw)); gap: 26px 22px; justify-content: start; }
+.slot { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.slot__page { position: relative; width: 100%; aspect-ratio: 595 / 842; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 18px rgba(0,0,0,.08); outline: 2px solid transparent; outline-offset: 4px; transition: outline-color .15s, transform .15s; }
+.slot__page img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.slot[aria-pressed="true"] .slot__page { outline-color: #111111; }
+.slot.is-over .slot__page { outline-color: #2F5BEA; transform: translateY(-3px); }
+.slot.is-dragging { opacity: .4; }
+.slot__meta { display: flex; justify-content: space-between; gap: 8px; }
+.slot__from { color: #8A8A86; }
+.slot.is-new .slot__page { animation: pop .35s cubic-bezier(.2,.7,.2,1); }
+@keyframes pop { from { transform: scale(.94); opacity: .5; } to { transform: none; opacity: 1; } }
+
+/* Каталог страниц */
+.cat { border-left: 1px solid #E3E3DF; min-height: 0; display: flex; flex-direction: column; }
+.cat__head { padding: 20px 20px 14px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid #E3E3DF; }
+.cat__title { font-weight: 600; font-size: 20px; letter-spacing: -0.02em; }
+.cat__for { font-size: 14px; color: #4A4742; }
+.chips { display: flex; gap: 6px; }
+.chip { border: 1px solid #D6D6D2; background: #FFFFFF; padding: 6px 10px; cursor: pointer; font: 500 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .02em; color: #4A4A4A; }
+.chip[aria-pressed="true"] { background: #111111; border-color: #111111; color: #FFFFFF; }
+.cat__list { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+.group__name { margin-bottom: 8px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px; }
+.pg { display: flex; flex-direction: column; gap: 5px; padding: 0; border: 0; background: transparent; cursor: grab; text-align: left; }
+.pg__img { width: 100%; aspect-ratio: 595 / 842; background: #FFFFFF; box-shadow: 0 0 0 1px #ECECE8, 0 4px 10px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s; }
+.pg:hover .pg__img { transform: translateY(-2px); box-shadow: 0 0 0 1px #D6D6D2, 0 8px 16px rgba(0,0,0,.10); }
+.pg[aria-current="true"] .pg__img { box-shadow: 0 0 0 2px #111111; }
+.pg__img img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+@media (max-width: 900px) {
+  .app { height: auto; min-height: 100dvh; overflow: visible; }
+  .build { display: flex; flex-direction: column; }
+  .zine { padding: 24px 16px; overflow: visible; }
+  .slots { --sw: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 10px; }
+  .cat { border-left: 0; border-top: 1px solid #E3E3DF; }
+  .cat__list { overflow: visible; }
+  .grid { grid-template-columns: repeat(4, 1fr); }
+  .slot__from { display: none; }
+  .cat__head { position: sticky; top: 0; z-index: 2; background: #FFFFFF; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:24px">
+      <a class="logo" href="index.html">ZINK</a>
+      <span class="mono muted">свой зин</span>
+    </div>
+    <nav aria-label="Шаги">
+      <ol class="steps mono">
+        <li><a href="templates.html" aria-current="step">01 шаблон</a></li>
+        <li><a href="editor.html?t=c">02 редактор</a></li>
+        <li><a href="print.html?t=c">03 печать</a></li>
+      </ol>
+    </nav>
+    <div class="topbar__right"><a class="btn" href="editor.html?t=c" style="min-height:40px;padding:0 18px;font-size:14px">Дальше → редактор</a></div>
+  </header>
+
+  <main class="build">
+    <section class="zine" aria-label="Твой зин">
+      <div class="zine__head">
+        <div>
+          <h1 class="zine__title">Собери свой зин</h1>
+          <p class="zine__hint">Выбери место в зине, потом страницу справа: она встанет на это место. Перетаскивай страницы, чтобы поменять порядок.</p>
+        </div>
+        <div class="base"><span class="mono muted">Взять за основу:</span><button type="button" class="ghost" data-base="1">шаблон 1</button><button type="button" class="ghost" data-base="2">шаблон 2</button></div>
+      </div>
+      <div class="slots" id="slots" role="listbox" aria-label="Страницы зина"></div>
+    </section>
+
+    <aside class="cat" aria-label="Каталог страниц">
+      <div class="cat__head">
+        <div class="cat__title">Страницы</div>
+        <div class="cat__for" id="catFor"></div>
+        <div class="chips" role="group" aria-label="Фильтр">
+          <button type="button" class="chip" data-f="all" aria-pressed="true">все</button>
+          <button type="button" class="chip" data-f="1" aria-pressed="false">шаблон 1</button>
+          <button type="button" class="chip" data-f="2" aria-pressed="false">шаблон 2</button>
+        </div>
+      </div>
+      <div class="cat__list" id="cat"></div>
+    </aside>
+  </main>
+</div>
+<script>
+// Сборка своего зина: 8 мест (1: обложка, 8: задник), в каждое: страница из любого шаблона
+(function () {
+  var KEY = 'zink-custom-pages';
+  var TPLS = [{ t: 1, name: 'Шаблон 1' }, { t: 2, name: 'Шаблон 2' }];
+  function slotName(i) { return i === 1 ? 'обложка' : i === 8 ? 'задник' : 'стр. ' + i; }
+  function narrow() { return window.matchMedia('(max-width: 900px)').matches; }
+  function img(ref) { return 'assets/pages/t' + ref.t + '-' + ref.pg + '.webp'; }
+
+  var comp;
+  // ?new=1 из библиотеки: собрать начисто
+  if (/[?&]new=1/.test(location.search)) {
+    try { localStorage.removeItem(KEY); var d = JSON.parse(localStorage.getItem('zink-draft-v2') || 'null'); if (d && d.key === 'tc') localStorage.removeItem('zink-draft-v2'); } catch (e) {}
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  }
+  try { comp = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  if (!Array.isArray(comp) || comp.length !== 8) comp = [1, 2, 3, 4, 5, 6, 7, 8].map(function (pg) { return { t: 2, pg: pg }; });
+  var m = location.search.match(/[?&]slot=(\d)/);
+  var sel = m ? Math.min(8, Math.max(1, +m[1])) : 1, filter = 'all', fresh = null;
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(comp)); localStorage.setItem('zink-cur', JSON.stringify({ t: 'c', key: 'tc' })); } catch (e) {} }
+
+  // ---------- места ----------
+  var slotsEl = document.getElementById('slots'), dragFrom = null;
+  function renderSlots() {
+    slotsEl.innerHTML = '';
+    comp.forEach(function (ref, i) {
+      var n = i + 1, b = document.createElement('button');
+      b.type = 'button'; b.className = 'slot' + (fresh === n ? ' is-new' : ''); b.draggable = true;
+      b.setAttribute('aria-pressed', n === sel ? 'true' : 'false');
+      b.setAttribute('aria-label', slotName(n) + ': страница ' + ref.pg + ' из шаблона ' + ref.t);
+      b.innerHTML = '<span class="slot__page"><img src="' + img(ref) + '" alt=""></span>' +
+        '<span class="slot__meta"><span class="mono">' + slotName(n) + '</span><span class="mono slot__from">ш' + ref.t + ' · ' + ref.pg + '</span></span>';
+      b.addEventListener('click', function () {
+        sel = n; render();
+        if (narrow()) document.querySelector('.cat').scrollIntoView({ behavior: 'smooth', block: 'start' });   // на телефоне каталог ниже
+      });
+      b.addEventListener('dragstart', function (e) { dragFrom = { slot: n }; b.classList.add('is-dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 's' + n); });
+      b.addEventListener('dragend', function () { b.classList.remove('is-dragging'); dragFrom = null; });
+      b.addEventListener('dragover', function (e) { if (!dragFrom) return; e.preventDefault(); b.classList.add('is-over'); });
+      b.addEventListener('dragleave', function () { b.classList.remove('is-over'); });
+      b.addEventListener('drop', function (e) {
+        e.preventDefault(); b.classList.remove('is-over'); if (!dragFrom) return;
+        if (dragFrom.slot) { var a = dragFrom.slot - 1, t = comp[a]; comp[a] = comp[i]; comp[i] = t; }   // поменять местами
+        else comp[i] = dragFrom.ref;                                                                     // страница из каталога
+        sel = n; fresh = n; save(); render();
+      });
+      slotsEl.appendChild(b);
+    });
+    fresh = null;
+  }
+
+  // ---------- каталог ----------
+  var catEl = document.getElementById('cat');
+  function renderCat() {
+    document.getElementById('catFor').textContent = 'Выбрано место: ' + slotName(sel);
+    catEl.innerHTML = '';
+    TPLS.forEach(function (T) {
+      if (filter !== 'all' && String(T.t) !== filter) return;
+      var g = document.createElement('div'); g.className = 'group';
+      g.innerHTML = '<div class="mono muted group__name">' + T.name + '</div>';
+      var grid = document.createElement('div'); grid.className = 'grid';
+      [1, 2, 3, 4, 5, 6, 7, 8].forEach(function (pg) {
+        var ref = { t: T.t, pg: pg }, cur = comp[sel - 1], b = document.createElement('button');
+        b.type = 'button'; b.className = 'pg'; b.draggable = true;
+        b.setAttribute('aria-current', cur.t === ref.t && cur.pg === ref.pg ? 'true' : 'false');
+        b.setAttribute('aria-label', T.name + ', ' + slotName(pg) + ': поставить на место «' + slotName(sel) + '»');
+        b.innerHTML = '<span class="pg__img"><img src="' + img(ref) + '" alt="" loading="lazy"></span><span class="mono muted">' + slotName(pg) + '</span>';
+        b.addEventListener('click', function () {
+          comp[sel - 1] = ref; fresh = sel; save();
+          if (sel < 8) sel++;                // сразу к следующему месту: быстро собрать весь зин
+          render();
+        });
+        b.addEventListener('dragstart', function (e) { dragFrom = { ref: ref }; e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setData('text/plain', 'p'); });
+        b.addEventListener('dragend', function () { dragFrom = null; });
+        grid.appendChild(b);
+      });
+      g.appendChild(grid); catEl.appendChild(g);
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+    c.addEventListener('click', function () {
+      filter = c.dataset.f;
+      Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (x) { x.setAttribute('aria-pressed', x === c ? 'true' : 'false'); });
+      renderCat();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-base]'), function (b) {
+    b.addEventListener('click', function () {
+      var t = +b.dataset.base;
+      comp = [1, 2, 3, 4, 5, 6, 7, 8].map(function (pg) { return { t: t, pg: pg }; });
+      sel = 1; save(); render();
+    });
+  });
+
+  function render() { renderSlots(); renderCat(); }
+  save(); render();
+})();
+</script>
+</body>
+</html>
